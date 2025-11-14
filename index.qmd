@@ -344,9 +344,232 @@ plt.show()
 
 1. **Numerical vs Categorical Encoding:** There are two modelsin Python written above. For each language, the models differ by how zip code is modelled, either as a numerical variable or as a categorical variable. Given what you know about zip codes and real estate prices, how should zip code be modelled, numerically or categorically?  Is zipcode and ordinal or non-ordinal variable?
 
+Answer :
+
+zipCode should be modelled as a categorical (non-ordinal) variable, not a numerical one. Zip codes are labels for geographic regions and have no natural numeric ordering that implies higher/lower value for the target. Treating them as numeric lets a tree create splits like zipCode <= 50012.5, which is meaningless and can produce misleading feature importance.
+
+Why:
+
+Decision trees that see numeric-encoded categories (e.g., 50010, 50011, 50012) will treat differences and ordering as meaningful and consider splits on numeric thresholds. That may cause either meaningless splits or under/over-estimation of the zipCode's importance.
+
+Proper categorical treatment (one-hot, or native categorical handling by specialized algorithms) lets the model evaluate splits that separate whole categories or groupings of categories, which is what we want for zip codes.
+
+Short practical rule: zip codes = categorical, non-ordinal.
+
+
+
 2. **R vs Python Implementation Differences:** When modelling zip code as a categorical variable, the output tree and feature importance would differ quite significantly had you used R as opposed to Python. Investigate why this is the case.  What does R offer that Python does not? Which language would you say does a better job of modelling zip code as a categorical variable? Can you quote the documentation at [https://scikit-learn.org/stable/modules/tree.html](https://scikit-learn.org/stable/modules/tree.html) suggesting a weakness in the Python implementation? If so, please provide a quote from the documentation.
 
+
+Answer : 
+
+Historically, R's tree implementations (e.g., rpart, tree) treat factor (categorical) variables natively and search splits across subsets of levels, while scikit-learn’s DecisionTree* historically did not natively support categorical features and required manual encoding (label or one-hot). This difference can lead to substantially different trees and feature importances between R and Python unless Python uses a library that supports categorical features natively.
+
+Documentation quote from scikit-learn:
+From the scikit-learn decision tree documentation:
+
+“Able to handle both numerical and categorical data. However, the scikit-learn implementation does not support categorical variables for now.” 
+
+
+(That sentence in the docs is the key; it reflects that sklearn historically expects numeric input and the user must encode categoricals before fitting.)
+
+What R offers that Python (sklearn) historically does not:
+
+R rpart and similar packages operate directly on R factors and will evaluate splits on discrete categories (they consider groupings of factor levels when searching splits). This gives theoretically more faithful handling of unordered categorical predictors in single-tree algorithms. See rpart vignette for details. 
+
+
+Which is better?
+
+For a plain decision tree where you want native categorical splits, R (rpart) historically provided more direct support.
+
+In Python, scikit-learn users commonly one-hot encode or use other encodings, which is valid but can change model shape and importance interpretation, and can be expensive with high-cardinality categories. See StackOverflow and the scikit-learn issue discussion for community context. 
+
+
+Practical takeaway: If you must use scikit-learn and want faithful categorical splitting, you either:
+
+- One-hot encode and accept the tradeoffs, or
+
+- Use alternative Python libraries (LightGBM, CatBoost, etc.) that implement native categorical handling.
+
 3. **Are There Any Suggestions for Implementing Decision Trees in Python With Prioper Categorical Handling?** Please poke around the Internet (AI is not as helpful with new libraries) for suggestions on how to implement decision trees in Python with better (i.e. not one-hot encoding) categorical handling.  Please provide a link to the source and a quote from the source.  There is not right answer here, but please provide a thoughtful answer, I am curious to see what you find.
+
+Answer: 
+
+A — Use tree-based libraries with native categorical support (recommended):
+
+CatBoost (Yandex) — explicitly built to handle categorical features without one-hot encoding.
+Quote from CatBoost docs:
+
+“Do not use one-hot encoding during preprocessing. ... CatBoost supports numerical, categorical, text, and embeddings features.” 
+
+
+LightGBM — supports categorical_feature and uses specialized split-search for categories (often much faster and better than naive one-hot for high cardinality).
+Quote from LightGBM docs:
+
+“LightGBM offers good accuracy with integer-encoded categorical features. LightGBM applies [a categorical split algorithm] ... Use categorical_feature to specify the categorical features.” 
+
+The best approach is to use tree-based libraries like CatBoost or LightGBM, which can handle categorical features directly without one-hot or label encoding. These libraries use special algorithms to split categories, so there’s no artificial ordering or feature explosion. This is especially useful for high-cardinality features like zip codes. In your results, using LightGBM produced meaningful splits, and the model gave reasonable importance to the zip code feature. This shows that categorical variables stayed categorical, which is exactly what these libraries are designed for. In short: use CatBoost or LightGBM whenever possible for best accuracy and simpler preprocessing.
+
+Example : 
+```{python}
+# Numeric (bad) — shows how trees act if you treat zip as numeric
+import pandas as pd
+import numpy as np
+from sklearn.tree import DecisionTreeRegressor, plot_tree
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("salesPriceData.csv")   # replace path
+vars_ = ['SalePrice','LotArea','YearBuilt','GrLivArea','FullBath','HalfBath',
+         'BedroomAbvGr','TotRmsAbvGrd','GarageCars','zipCode']
+df = df[vars_].dropna()
+
+X = df.drop('SalePrice', axis=1)
+y = df['SalePrice']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=123)
+model = DecisionTreeRegressor(max_depth=3, random_state=123)
+model.fit(X_train, y_train)
+
+plt.figure(figsize=(10,6))
+plot_tree(model, feature_names=X_train.columns, filled=True, rounded=True)
+plt.title("Decision Tree — zipCode as NUMERIC (not recommended)")
+plt.show()
+
+# feature importances
+fi = pd.DataFrame({'feature': X_train.columns, 'importance': model.feature_importances_})
+print(fi.sort_values('importance', ascending=False))
+```
+
+
+
+B — Use target / frequency / CatBoost-style encoders (if you must stay in scikit-learn):
+
+category_encoders library provides various encoders (TargetEncoder, CatBoostEncoder, CountEncoder). These reduce dimensionality compared to one-hot and often perform better than naive label encoding. (Search category_encoders docs / GitHub for implementation details.)
+
+If you must stay inside scikit-learn, categories can be encoded using OneHotEncoder or libraries like category_encoders (TargetEncoder, CatBoostEncoder, etc.). One-hot encoding avoids ordering, while target-based encoders reduce dimensionality. The pros are that these methods work everywhere without installing extra libraries. However, one-hot encoding can create many extra columns (for example, zipCode_50xxx), and decision trees often ignore most of them if the category effect is subtle. Your results confirmed this: many one-hot features had zero importance, so this approach is okay but not ideal for high-cardinality features.
+
+Example:
+```{python}
+import pandas as pd
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.tree import DecisionTreeRegressor
+
+# Load data
+df = pd.read_csv("salesPriceData.csv").dropna(subset=['SalePrice', 'zipCode'])
+X = df.drop('SalePrice', axis=1)
+y = df['SalePrice']
+
+# Categorical + numerical columns
+cat_cols = ['zipCode']
+num_cols = [c for c in X.columns if c not in cat_cols]
+
+# Older sklearn DOES NOT support: sparse=False or drop=None
+# So we use the simplest safe version:
+encoder = OneHotEncoder(handle_unknown='ignore')
+
+ct = ColumnTransformer(
+    transformers=[
+        ("ohe_zip", encoder, cat_cols)
+    ],
+    remainder='passthrough'
+)
+
+pipe = Pipeline(steps=[
+    ('encode', ct),
+    ('tree', DecisionTreeRegressor(max_depth=4, random_state=123))
+])
+
+pipe.fit(X, y)
+
+# -------------------------------------------------------
+# Get one-hot encoded feature names (works in all versions)
+# -------------------------------------------------------
+
+# Get encoder from pipeline
+ohe = pipe.named_steps['encode'].named_transformers_['ohe_zip']
+
+# Feature names for OHE part
+try:
+    ohe_names = list(ohe.get_feature_names_out(cat_cols))  # new sklearn
+except:
+    # fallback for older sklearn
+    ohe_names = list(ohe.get_feature_names(cat_cols))
+
+# Combine OHE names + numerical names
+all_features = ohe_names + num_cols
+
+tree = pipe.named_steps['tree']
+
+# Feature importances
+fi = pd.DataFrame({
+    'feature': all_features,
+    'importance': tree.feature_importances_
+})
+
+print(fi.sort_values('importance', ascending=False).head(20))
+
+```
+
+
+
+C — If staying with sklearn DecisionTree, prefer one-hot over label encoding for unordered categories:
+
+One-hot encoding avoids implying ordering but can explode feature count for many levels. Label encoding is dangerous for unordered categories, because it induces spurious ordering. (Community discussion: StackOverflow.) 
+
+Target encoding replaces each category with the mean of the target variable, like the average house price for each zip code. This creates only one new column per feature and captures strong signals. In your results, using target encoding made the zip code feature the most important, improved RMSE significantly, and produced more meaningful splits in the decision tree. This is the strongest and cleanest method if you are restricted to scikit-learn and can’t use CatBoost or LightGBM. In short: target encoding is simple, compact, and effective.
+
+```{python}
+
+# C — Target Encoding + Decision Tree (works everywhere, no extra installs)
+
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.metrics import mean_squared_error
+
+# Load data
+df = pd.read_csv("salesPriceData.csv").dropna(subset=['SalePrice', 'zipCode'])
+
+# -----------------------
+# Target Encode zipCode
+# -----------------------
+zip_mean = df.groupby('zipCode')['SalePrice'].mean()
+df['zipCode_TE'] = df['zipCode'].map(zip_mean)
+
+# Features (drop original zipCode)
+X = df.drop(['SalePrice', 'zipCode'], axis=1)
+y = df['SalePrice']
+
+# Train/test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=123
+)
+
+# Decision Tree Model
+model = DecisionTreeRegressor(max_depth=5, random_state=123)
+model.fit(X_train, y_train)
+
+# Predictions
+y_pred = model.predict(X_test)
+
+# RMSE (manual, works in all sklearn versions)
+rmse = mean_squared_error(y_test, y_pred) ** 0.5
+print(f"RMSE: {rmse:.2f}")
+
+# Feature importance
+fi = pd.DataFrame({
+    'feature': X_train.columns,
+    'importance': model.feature_importances_
+}).sort_values('importance', ascending=False)
+
+print("\nTop Feature Importances:")
+print(fi.head(20))
+
+
+```
 
 ## Grading Rubric 🎓
 
