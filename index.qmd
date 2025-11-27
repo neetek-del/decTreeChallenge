@@ -366,12 +366,12 @@ Answer :
 Historically, R's tree implementations (e.g., rpart, tree) treat factor (categorical) variables natively and search splits across subsets of levels, while scikit-learn’s DecisionTree* historically did not natively support categorical features and required manual encoding (label or one-hot). This difference can lead to substantially different trees and feature importances between R and Python unless Python uses a library that supports categorical features natively.
 
 Documentation quote from scikit-learn:
+
 From the scikit-learn decision tree documentation:
 
 “Able to handle both numerical and categorical data. However, the scikit-learn implementation does not support categorical variables for now.” 
 
-
-(That sentence in the docs is the key; it reflects that sklearn historically expects numeric input and the user must encode categoricals before fitting.)
+This sentence in the docs is the key; it reflects that sklearn historically expects numeric input and the user must encode categoricals before fitting.
 
 What R offers that Python (sklearn) historically does not:
 
@@ -380,12 +380,11 @@ R rpart and similar packages operate directly on R factors and will evaluate spl
 
 Which is better?
 
-For a plain decision tree where you want native categorical splits, R (rpart) historically provided more direct support.
+For a plain decision tree where we want native categorical splits, R (rpart) historically provided more direct support.
 
 In Python, scikit-learn users commonly one-hot encode or use other encodings, which is valid but can change model shape and importance interpretation, and can be expensive with high-cardinality categories. See StackOverflow and the scikit-learn issue discussion for community context. 
 
-
-Practical takeaway: If you must use scikit-learn and want faithful categorical splitting, you either:
+Practical takeaway: If we are using scikit-learn and want faithful categorical splitting, we either:
 
 - One-hot encode and accept the tradeoffs, or
 
@@ -401,7 +400,6 @@ CatBoost (Yandex) — explicitly built to handle categorical features without on
 Quote from CatBoost docs:
 
 “Do not use one-hot encoding during preprocessing. ... CatBoost supports numerical, categorical, text, and embeddings features.” 
-
 
 LightGBM — supports categorical_feature and uses specialized split-search for categories (often much faster and better than naive one-hot for high cardinality).
 Quote from LightGBM docs:
@@ -443,11 +441,11 @@ print(fi.sort_values('importance', ascending=False))
 
 
 
-B — Use target / frequency / CatBoost-style encoders (if you must stay in scikit-learn):
+B — Use target / frequency / CatBoost-style encoders (if we are using scikit-learn):
 
 category_encoders library provides various encoders (TargetEncoder, CatBoostEncoder, CountEncoder). These reduce dimensionality compared to one-hot and often perform better than naive label encoding. (Search category_encoders docs / GitHub for implementation details.)
 
-If you must stay inside scikit-learn, categories can be encoded using OneHotEncoder or libraries like category_encoders (TargetEncoder, CatBoostEncoder, etc.). One-hot encoding avoids ordering, while target-based encoders reduce dimensionality. The pros are that these methods work everywhere without installing extra libraries. However, one-hot encoding can create many extra columns (for example, zipCode_50xxx), and decision trees often ignore most of them if the category effect is subtle. Your results confirmed this: many one-hot features had zero importance, so this approach is okay but not ideal for high-cardinality features.
+If we stay inside scikit-learn, categories can be encoded using OneHotEncoder or libraries like category_encoders (TargetEncoder, CatBoostEncoder, etc.). One-hot encoding avoids ordering, while target-based encoders reduce dimensionality. The pros are that these methods work everywhere without installing extra libraries. However, one-hot encoding can create many extra columns (for example, zipCode_50xxx), and decision trees often ignore most of them if the category effect is subtle. The results confirmed this: many one-hot features had zero importance, so this approach is okay but not ideal for high-cardinality features.
 
 Example:
 ```{python}
@@ -519,7 +517,7 @@ C — If staying with sklearn DecisionTree, prefer one-hot over label encoding f
 
 One-hot encoding avoids implying ordering but can explode feature count for many levels. Label encoding is dangerous for unordered categories, because it induces spurious ordering. (Community discussion: StackOverflow.) 
 
-Target encoding replaces each category with the mean of the target variable, like the average house price for each zip code. This creates only one new column per feature and captures strong signals. In your results, using target encoding made the zip code feature the most important, improved RMSE significantly, and produced more meaningful splits in the decision tree. This is the strongest and cleanest method if you are restricted to scikit-learn and can’t use CatBoost or LightGBM. In short: target encoding is simple, compact, and effective.
+Target encoding replaces each category with the mean of the target variable, like the average house price for each zip code. This creates only one new column per feature and captures strong signals. In the results, using target encoding made the zip code feature the most important, improved RMSE significantly, and produced more meaningful splits in the decision tree. This is the strongest and cleanest method if we are restricted to scikit-learn and can’t use CatBoost or LightGBM. In short: target encoding is simple, compact, and effective.
 
 ```{python}
 
