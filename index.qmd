@@ -515,7 +515,7 @@ print(fi.sort_values('importance', ascending=False).head(20))
 
 C — If staying with sklearn DecisionTree,  prefer one-hot over label encoding for unordered categories:
 
-One-hot encoding avoids implying ordering but can explode feature count for many levels. Label encoding is dangerous for unordered categories, because it induces spurious ordering. (Community discussion: StackOverflow.) 
+One hot encoding avoids implying ordering but can explode feature count for many levels. Label encoding is dangerous for unordered categories, because it induces spurious ordering. (Community discussion: StackOverflow.) 
 
 Target encoding replaces each category with the mean of the target variable, like the average house price for each zip code. This creates only one new column per feature and captures strong signals. In the results, using target encoding made the zip code feature the most important, improved RMSE significantly, and produced more meaningful splits in the decision tree. This is the strongest and cleanest method if we are restricted to scikit-learn and can’t use CatBoost or LightGBM. In short: target encoding is simple, compact, and effective.
 
