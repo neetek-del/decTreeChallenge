@@ -513,7 +513,7 @@ print(fi.sort_values('importance', ascending=False).head(20))
 
 
 
-C — If staying with sklearn DecisionTree, prefer one-hot over label encoding for unordered categories:
+C — If staying with sklearn DecisionTree,  prefer one-hot over label encoding for unordered categories:
 
 One-hot encoding avoids implying ordering but can explode feature count for many levels. Label encoding is dangerous for unordered categories, because it induces spurious ordering. (Community discussion: StackOverflow.) 
 
