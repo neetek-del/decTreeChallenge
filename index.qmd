@@ -56,7 +56,7 @@ We are analyzing the Ames Housing dataset which contains detailed information ab
 
 ## Data Loading and Model Building
 
-### Python
+### Python Code
 
 ```{python}
 #| label: load-and-model-python
