@@ -3,7 +3,6 @@ title: "Decision Tree Challenge"
 subtitle: "Feature Importance and Categorical Variable Encoding"
 format:
   html: default
-  pdf: default
 execute:
   echo: true
   eval: true
@@ -59,8 +58,7 @@ We are analyzing the Ames Housing dataset which contains detailed information ab
 ### Python Code
 
 ```{python}
-#| label: load-and-model-python
-#| echo: true
+
 
 import pandas as pd
 import numpy as np
